@@ -1,0 +1,26 @@
+# Containerfile.web — build context is the repo root (see compose.yaml).
+# Builds the microfrontend: shell (host, owns index.html + stylesheet) plus the three
+# remotes; nginx serves the shell at / and each bundle under /mfe/<app>/ (spec 07).
+# npm ci is the only install path once package-lock.json is committed (V-1).
+
+FROM node:24 AS build
+WORKDIR /src
+COPY web/package.json web/package-lock.json* web/tsconfig.base.json ./
+COPY web/packages/shared/package.json packages/shared/
+COPY web/packages/ui/package.json packages/ui/
+COPY web/apps/shell/package.json apps/shell/
+COPY web/apps/catalog/package.json apps/catalog/
+COPY web/apps/reader/package.json apps/reader/
+COPY web/apps/admin/package.json apps/admin/
+RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+COPY web/apps apps
+COPY web/packages packages
+RUN npm run build
+
+FROM nginx:1.29 AS runtime
+COPY deploy/nginx/web.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /src/apps/shell/dist /usr/share/nginx/html
+COPY --from=build /src/apps/catalog/dist /usr/share/nginx/html/mfe/catalog
+COPY --from=build /src/apps/reader/dist /usr/share/nginx/html/mfe/reader
+COPY --from=build /src/apps/admin/dist /usr/share/nginx/html/mfe/admin
+EXPOSE 80

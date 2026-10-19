@@ -1,0 +1,33 @@
+# Closed pin set — no dynamic versions (AGENTS.md; baseline doc 02).
+# Verification log: docs/02-architecture-techlead/00-platform-baseline/02-stack-and-build-pins.md §7.
+
+[versions]
+springBoot = "4.1.1"
+springDependencyManagement = "1.1.7"   # verified 2026-10-19 (plugin resolution)
+kotlin = "2.4.21"
+rome = "2.1.0"                          # verified 2026-10-19 (dependency resolution)
+crawlerCommons = "1.6"                  # verified 2026-10-19 (was 1.4.0: version does not exist)
+jsoup = "1.21.2"                        # verified 2026-10-19 (dependency resolution)
+readability4j = "1.0.7"                 # verified 2026-10-19 (dependency resolution)
+copyDown = "1.1"                        # verified 2026-10-19 (artifact io.github.furstenheim:copy_down)
+logstashEncoder = "8.0"                 # verified 2026-10-19 (dependency resolution)
+
+[libraries]
+rome = { module = "com.rometools:rome", version.ref = "rome" }
+crawler-commons = { module = "com.github.crawler-commons:crawler-commons", version.ref = "crawlerCommons" }
+jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
+readability4j = { module = "net.dankito.readability4j:readability4j", version.ref = "readability4j" }
+copy-down = { module = "io.github.furstenheim:copy_down", version.ref = "copyDown" }
+logstash-logback-encoder = { module = "net.logstash.logback:logstash-logback-encoder", version.ref = "logstashEncoder" }
+
+# Test stack: versions come from the Spring Boot 4.1.1 BOM
+# (JUnit Jupiter 6.0.3; Testcontainers 2.0.5 with the renamed testcontainers-* modules).
+testcontainers-core = { module = "org.testcontainers:testcontainers" }
+testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql" }
+testcontainers-junit-jupiter = { module = "org.testcontainers:testcontainers-junit-jupiter" }
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "springDependencyManagement" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }

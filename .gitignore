@@ -1,0 +1,29 @@
+# Secrets — never commit
+.env
+*.env.local
+
+# Runtime state (spec: baseline 05)
+data/
+
+# Gradle / JVM
+.gradle/
+build/
+.kotlin/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local verification logs
+.verify/
+.npm-cache/
+
+# Node / web
+web/node_modules/
+web/dist/
+web/coverage/
+
+# IDE / OS
+.idea/
+*.iml
+.DS_Store
+
+# Logs
+*.log

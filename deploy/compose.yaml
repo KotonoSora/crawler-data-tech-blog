@@ -1,0 +1,126 @@
+name: tech-blog
+
+services:
+  postgres:
+    image: postgres:18.6
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-techblog}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: techblog
+      CRAWLER_DB_PASSWORD: ${CRAWLER_DB_PASSWORD:?set CRAWLER_DB_PASSWORD in deploy/.env}
+      API_DB_PASSWORD: ${API_DB_PASSWORD:?set API_DB_PASSWORD in deploy/.env}
+    volumes:
+      - ../data/postgres:/var/lib/postgresql
+      - ./init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d techblog"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ../data/redis:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  crawler-service:
+    build:
+      context: ..
+      dockerfile: deploy/Containerfile.crawler
+    environment:
+      CRAWLER_DB_URL: jdbc:postgresql://postgres:5432/crawler_db
+      CRAWLER_DB_USER: techblog_crawler_app
+      CRAWLER_DB_PASSWORD: ${CRAWLER_DB_PASSWORD}
+      FLYWAY_USER: ${POSTGRES_USER:-techblog}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_URL: redis://redis:6379
+      CRAWLER_CONTACT: ${CRAWLER_CONTACT:?set CRAWLER_CONTACT in deploy/.env}
+      CRAWLER_ROLE: ${CRAWLER_ROLE:-all}
+      CRAWLER_GLOBAL_HOSTS: ${CRAWLER_GLOBAL_HOSTS:-4}
+      CRAWLER_DEFAULT_DELAY_MS: ${CRAWLER_DEFAULT_DELAY_MS:-2000}
+      CRAWLER_MEDIUM_DELAY_MS: ${CRAWLER_MEDIUM_DELAY_MS:-3000}
+      CRAWLER_ARCHIVE_ROOT: /app/data/uploads/crawl
+      TZ: UTC
+    volumes:
+      - ../data:/app/data
+    ports:
+      - "127.0.0.1:8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Verified 2026-10-19: eclipse-temurin:21-jre ships /usr/bin/wget and /usr/bin/curl.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/health/readiness > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    restart: unless-stopped
+
+  api-service:
+    build:
+      context: ..
+      dockerfile: deploy/Containerfile.api
+    environment:
+      API_DB_URL: jdbc:postgresql://postgres:5432/api_db
+      API_DB_USER: techblog_api_app
+      API_DB_PASSWORD: ${API_DB_PASSWORD}
+      FLYWAY_USER: ${POSTGRES_USER:-techblog}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_URL: redis://redis:6379
+      CRAWLER_INTERNAL_URL: http://crawler-service:8080
+      TZ: UTC
+    volumes:
+      - ../data/logs:/app/data/logs
+    ports:
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      crawler-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/health/readiness > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Containerfile.web
+    ports:
+      - "127.0.0.1:8090:80"
+    depends_on:
+      api-service:
+        condition: service_started
+    restart: unless-stopped
+
+  nginx-archive:
+    image: nginx:1.29
+    profiles: ["serving"]
+    volumes:
+      - ../data/uploads:/srv/archive:ro
+      - ./nginx/archive.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../data/logs/nginx:/var/log/nginx
+    ports:
+      - "127.0.0.1:8091:80"
+    restart: unless-stopped

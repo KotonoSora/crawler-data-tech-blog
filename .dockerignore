@@ -1,0 +1,12 @@
+# Build context exclusions (Containerfiles copy only what they need).
+.git
+.gradle
+.kotlin
+.npm-cache
+.verify
+data
+docs
+web/node_modules
+web/dist
+web/**/dist
+**/build

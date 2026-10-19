@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: api-service
+  datasource:
+    url: ${API_DB_URL:jdbc:postgresql://localhost:5432/api_db}
+    username: ${API_DB_USER:techblog_api_app}
+    password: ${API_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 5
+      connection-timeout: 5000
+      connection-init-sql: "SET statement_timeout = 30000; SET lock_timeout = 5000; SET idle_in_transaction_session_timeout = 60000"
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    clean-disabled: true
+    user: ${FLYWAY_USER:${spring.datasource.username}}
+    password: ${FLYWAY_PASSWORD:${spring.datasource.password}}
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+api:
+  crawler-base-url: ${CRAWLER_INTERNAL_URL:http://crawler-service:8080}
+  command-connect-timeout-ms: 2000
+  command-read-timeout-ms: 5000
+  content-read-timeout-ms: 30000
+  content-cache-ttl-seconds: 300
+  content-cache-max-entries: 200
+  content-cache-max-body-bytes: 204800
+  event-stream: ${EVENT_STREAM:tb:events}
+  consumer-group: ${PROJECTION_GROUP:api-projections}
+  consumer-name: ${PROJECTION_CONSUMER:api-service-1}
+  reconcile-interval-ms: 60000
+  dev-cors-origin: ${DEV_CORS_ORIGIN:http://localhost:5173}

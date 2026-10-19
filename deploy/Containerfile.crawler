@@ -1,0 +1,17 @@
+# Containerfile.crawler — build context is the repo root (see compose.yaml).
+# Image tag candidate: gradle:9.8.1-jdk21 (V-1).
+
+FROM gradle:9.8.1-jdk21 AS build
+WORKDIR /src
+COPY gradlew gradlew.bat settings.gradle.kts build.gradle.kts gradle.properties ./
+COPY gradle ./gradle
+COPY services ./services
+RUN ./gradlew --no-daemon :services:crawler-service:bootJar
+
+FROM eclipse-temurin:21-jre AS runtime
+RUN useradd --create-home --uid 10001 app
+WORKDIR /app
+COPY --from=build /src/services/crawler-service/build/libs/*.jar /app/app.jar
+USER app
+EXPOSE 8080
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/app.jar"]

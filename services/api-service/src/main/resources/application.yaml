@@ -1,6 +1,8 @@
 spring:
   application:
     name: api-service
+  lifecycle:
+    timeout-per-shutdown-phase: 60s
   datasource:
     url: ${API_DB_URL:jdbc:postgresql://localhost:5432/api_db}
     username: ${API_DB_USER:techblog_api_app}
@@ -22,19 +24,28 @@ spring:
   data:
     redis:
       url: ${REDIS_URL:redis://localhost:6379}
+      # Readiness budget: each dependency check must answer within 2 s (spec 05 file 01 §4).
+      connect-timeout: 2s
+      timeout: 2s
 
 server:
   port: 8080
+  shutdown: graceful
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus,metrics
+        # Exactly the three ops endpoints (spec 05 file 01 §4); nginx never proxies /actuator.
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
         enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        "http.server.requests": true
 
 api:
   crawler-base-url: ${CRAWLER_INTERNAL_URL:http://crawler-service:8080}
@@ -47,5 +58,5 @@ api:
   event-stream: ${EVENT_STREAM:tb:events}
   consumer-group: ${PROJECTION_GROUP:api-projections}
   consumer-name: ${PROJECTION_CONSUMER:api-service-1}
-  reconcile-interval-ms: 60000
+  projection-lag-check-ms: ${API_PROJECTION_LAG_CHECK_MS:30000}
   dev-cors-origin: ${DEV_CORS_ORIGIN:http://localhost:5173}

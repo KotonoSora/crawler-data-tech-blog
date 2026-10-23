@@ -15,7 +15,7 @@
     "dev:catalog": "npm run dev -w @techblog/catalog",
     "dev:reader": "npm run dev -w @techblog/reader",
     "dev:admin": "npm run dev -w @techblog/admin",
-    "build": "npm run build -w @techblog/catalog && npm run build -w @techblog/reader && npm run build -w @techblog/admin && npm run build -w @techblog/shell",
+    "build": "npm run build -w @techblog/catalog && npm run build -w @techblog/reader && npm run build -w @techblog/admin && npm run build -w @techblog/shell && node scripts/assemble-dist.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
   },

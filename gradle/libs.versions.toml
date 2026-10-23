@@ -10,6 +10,7 @@ crawlerCommons = "1.6"                  # verified 2026-10-19 (was 1.4.0: versio
 jsoup = "1.21.2"                        # verified 2026-10-19 (dependency resolution)
 readability4j = "1.0.7"                 # verified 2026-10-19 (dependency resolution)
 copyDown = "1.1"                        # verified 2026-10-19 (artifact io.github.furstenheim:copy_down)
+springdoc = "3.1.1"                     # Boot 4 line; Maven Central 3.1.1 verified 2026-10-22
 logstashEncoder = "8.0"                 # verified 2026-10-19 (dependency resolution)
 
 [libraries]
@@ -18,6 +19,7 @@ crawler-commons = { module = "com.github.crawler-commons:crawler-commons", versi
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 readability4j = { module = "net.dankito.readability4j:readability4j", version.ref = "readability4j" }
 copy-down = { module = "io.github.furstenheim:copy_down", version.ref = "copyDown" }
+springdoc-openapi = { module = "org.springdoc:springdoc-openapi-starter-webmvc-api", version.ref = "springdoc" }
 logstash-logback-encoder = { module = "net.logstash.logback:logstash-logback-encoder", version.ref = "logstashEncoder" }
 
 # Test stack: versions come from the Spring Boot 4.1.1 BOM

@@ -26,6 +26,15 @@ import { Skeleton } from '@techblog/ui/components/skeleton'
 // The shell routes /articles/:id here and passes the id as an attribute (spec 07 file 02).
 // Markdown renders sanitized (rehype-sanitize, no raw HTML); images only resolve through the
 // archive asset proxy — remote images are never hotlinked (crawl rules, AGENTS.md).
+//
+// react-markdown escapes raw HTML as literal text instead of executing it, but the escaped
+// script body would still be visible. Strip the dangerous HTML blocks named in spec 07 file 05
+// §2 before parsing so neither markup nor its text reaches the DOM.
+const DANGEROUS_TAGS = ['script', 'iframe', 'style', 'object', 'embed', 'form'] as const
+type DangerousTag = (typeof DANGEROUS_TAGS)[number]
+
+const FENCE_PATTERN = /^ {0,3}(`{3,}|~{3,})/
+
 export function ReaderApp({ attrs, navigate }: MfeProps) {
   const articleId = attrs['article-id'] ?? ''
   const [version, setVersion] = useState(0)
@@ -53,7 +62,7 @@ export function ReaderApp({ attrs, navigate }: MfeProps) {
       setNotice('Retry queued. The status updates when the job finishes.')
       setVersion((value) => value + 1)
     } catch (error) {
-      setNotice(error instanceof UiError ? `${error.message} ${error.action}` : 'Request failed.')
+      setNotice(error instanceof UiError ? `${error.code}: ${error.message} ${error.action}` : 'Request failed.')
     } finally {
       setBusy(false)
     }
@@ -164,7 +173,7 @@ function ArticleBody({ detail }: { detail: ArticleDetail }) {
             },
           }}
         >
-          {detail.contentMarkdown}
+          {stripDangerousHtml(detail.contentMarkdown)}
         </Markdown>
       </div>
       <Card data-testid="reader-metadata">
@@ -245,6 +254,99 @@ function ArticleSkeleton() {
 }
 
 /**
+ * Remove raw HTML blocks that the reader must never render (spec 07 file 05 §2).
+ *
+ * Fenced code blocks are preserved verbatim so a legitimate HTML sample in an article
+ * is not mangled. Outside fences, `<script>`, `<iframe>`, `<style>`, `<object>`, `<embed>`
+ * and `<form>` are dropped together with their content, including multi-line blocks.
+ * Everything else is left to react-markdown + rehype-sanitize.
+ */
+export function stripDangerousHtml(markdown: string): string {
+  const output: string[] = []
+  let fence: { character: string; length: number } | null = null
+  let open: DangerousTag | null = null
+
+  for (const line of markdown.split('\n')) {
+    if (open !== null) {
+      const close = new RegExp(`<\\s*/\\s*${open}\\s*>`, 'i').exec(line)
+      if (!close) continue
+      open = null
+      const remainder = line.slice(close.index + close[0].length)
+      const cleaned = stripDangerousHtmlLine(remainder)
+      if (cleaned.text.trim() !== '') output.push(cleaned.text)
+      open = cleaned.open
+      continue
+    }
+
+    if (fence !== null) {
+      output.push(line)
+      const marker = FENCE_PATTERN.exec(line)
+      if (marker && marker[1][0] === fence.character && marker[1].length >= fence.length) {
+        fence = null
+      }
+      continue
+    }
+
+    const fenceMarker = FENCE_PATTERN.exec(line)
+    if (fenceMarker) {
+      fence = { character: fenceMarker[1][0], length: fenceMarker[1].length }
+      output.push(line)
+      continue
+    }
+
+    const cleaned = stripDangerousHtmlLine(line)
+    output.push(cleaned.text)
+    open = cleaned.open
+  }
+
+  return output.join('\n')
+}
+
+function stripDangerousHtmlLine(line: string): { text: string; open: DangerousTag | null } {
+  const pattern = new RegExp(`<\\s*(/?)\\s*(${DANGEROUS_TAGS.join('|')})\\b[^>]*>`, 'gi')
+  let text = ''
+  let cursor = 0
+  let match: RegExpExecArray | null
+
+  while ((match = pattern.exec(line)) !== null) {
+    if (match.index < cursor) continue
+    const [raw, slash, name] = match
+    const tag = name.toLowerCase() as DangerousTag
+
+    if (slash === '/') {
+      text += line.slice(cursor, match.index)
+      cursor = match.index + raw.length
+      continue
+    }
+
+    // Void/self-closing tags carry no body to remove; drop the tag itself.
+    if (tag === 'embed' || /\/\s*>$/.test(raw)) {
+      text += line.slice(cursor, match.index)
+      cursor = match.index + raw.length
+      continue
+    }
+
+    const after = line.slice(match.index + raw.length)
+    const close = new RegExp(`<\\s*/\\s*${tag}\\s*>`, 'i').exec(after)
+    if (close !== null) {
+      text += line.slice(cursor, match.index)
+      cursor = match.index + raw.length + close.index + close[0].length
+      pattern.lastIndex = cursor
+      continue
+    }
+
+    // No closing tag on this line: drop the rest and keep stripping until it appears.
+    text += line.slice(cursor, match.index)
+    return { text, open: tag }
+  }
+
+  text += line.slice(cursor)
+  return { text, open: null }
+}
+
+const ASSET_NAME = /^[A-Za-z0-9._-]{1,80}$/
+
+/**
  * Resolve a Markdown image source against the article's asset proxy.
  *
  * Only archive-relative paths are accepted: `assets/<file>` or `<file>`. Absolute URLs,
@@ -256,8 +358,6 @@ export function resolveAsset(src: string | undefined, base: string): string | nu
   if (/^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(src)) return null
   if (src.startsWith('/')) return null
   const relative = src.replace(/^\.\//, '').replace(/^assets\//, '')
-  if (relative === '' || relative.includes('..') || relative.includes('/') || relative.includes('\\')) {
-    return null
-  }
+  if (!ASSET_NAME.test(relative) || relative.includes('..')) return null
   return `${base}/${encodeURIComponent(relative)}`
 }

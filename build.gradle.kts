@@ -7,6 +7,6 @@ plugins {
 }
 
 subprojects {
-    group = "com.kotonosora.techblog"
+    group = "com.techblog"
     version = "0.1.0"
 }

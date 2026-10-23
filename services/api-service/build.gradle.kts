@@ -15,6 +15,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("io.micrometer:micrometer-registry-prometheus")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.flywaydb:flyway-core")
@@ -26,7 +27,7 @@ dependencies {
     implementation("tools.jackson.module:jackson-module-kotlin")
     implementation(libs.logstash.logback.encoder)
 
-    // TODO(V-1): springdoc-openapi (Boot 4 line) — add after first existence check.
+    implementation(libs.springdoc.openapi)
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.junit.jupiter:junit-jupiter")

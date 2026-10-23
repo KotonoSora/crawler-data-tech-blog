@@ -1,6 +1,14 @@
 spring:
   application:
     name: crawler-service
+  task:
+    scheduling:
+      # tick (jobs), retryTick (tb:retry), health scans and metrics must not share one thread:
+      # a long backfill would otherwise starve retries (JobRunner comment, spec 02 file 05 §1).
+      pool:
+        size: 4
+  lifecycle:
+    timeout-per-shutdown-phase: 60s
   datasource:
     url: ${CRAWLER_DB_URL:jdbc:postgresql://localhost:5432/crawler_db}
     username: ${CRAWLER_DB_USER:techblog_crawler_app}
@@ -22,36 +30,76 @@ spring:
   data:
     redis:
       url: ${REDIS_URL:redis://localhost:6379}
+      # Readiness budget: each dependency check must answer within 2 s (spec 05 file 01 §4).
+      connect-timeout: 2s
+      timeout: 2s
 
 server:
   port: 8080
+  shutdown: graceful
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus,metrics
+        # Exactly the three ops endpoints (spec 05 file 01 §4); nginx never proxies /actuator.
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
         enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        "http.server.requests": true
+        crawler_fetch_duration_seconds: true
+        crawler_extract_duration_seconds: true
+        crawler_job_duration_seconds: true
 
 crawler:
   role: ${CRAWLER_ROLE:all}
   global-hosts: ${CRAWLER_GLOBAL_HOSTS:4}
   contact: ${CRAWLER_CONTACT:}
   archive-root: ${CRAWLER_ARCHIVE_ROOT:/app/data/uploads/crawl}
+  tmp-dir: ${CRAWLER_TMP_DIR:/app/data/tmp}
+  event-stream: ${EVENT_STREAM:tb:events}
+  stale-after-hours: ${CRAWLER_STALE_AFTER_H:${CRAWLER_STALE_AFTER_HOURS:72}}
   default-delay-ms: ${CRAWLER_DEFAULT_DELAY_MS:2000}
   medium-delay-ms: ${CRAWLER_MEDIUM_DELAY_MS:3000}
-  connect-timeout-ms: 10000
-  read-timeout-ms: 30000
+  connect-timeout-ms: ${CRAWLER_CONNECT_TIMEOUT_MS:10000}
+  read-timeout-ms: ${CRAWLER_READ_TIMEOUT_MS:30000}
+  fetch-total-timeout-ms: ${CRAWLER_FETCH_TOTAL_TIMEOUT_MS:60000}
   max-html-bytes: 10485760
+  max-redirects: 3
+  # Test-only escape hatch; never enable in a deployment (https/443 only, file 05 §4).
+  allow-insecure-http: false
+  robots-max-bytes: 524288
+  robots-ttl-seconds: 86400
+  robots-failure-ttl-seconds: 300
+  breaker-threshold: 20
+  host-pause-seconds: 1800
+  fetch-queue-prefix: ${CRAWLER_FETCH_QUEUE_PREFIX:tb:q:}
+  retry-queue-key: ${CRAWLER_RETRY_QUEUE_KEY:tb:retry}
+  pause-key-prefix: ${CRAWLER_PAUSE_KEY_PREFIX:tb:pause:}
+  robots-cache-prefix: ${CRAWLER_ROBOTS_CACHE_PREFIX:tb:robots:}
+  host-lock-prefix: ${CRAWLER_HOST_LOCK_PREFIX:tb:lock:host:}
+  hosts-key: ${CRAWLER_HOSTS_KEY:tb:hosts}
+  article-lock-prefix: ${CRAWLER_ARTICLE_LOCK_PREFIX:tb:lock:article:}
+  host-lock-ttl-seconds: 60
+  host-lock-renew-seconds: 20
+  article-lock-ttl-seconds: 300
+  article-lock-heartbeat-seconds: 60
+  processing-idle-seconds: 600
+  retry-promote-limit: 500
+  resume-min-free-bytes: 6442450944
+  resume-stable-seconds: 60
+  max-queue-message-bytes: 4096
   min-content-chars: 200
   max-assets: 100
-  max-asset-bytes: 52428800
+  max-asset-bytes: ${CRAWLER_MAX_ASSET_BYTES:52428800}
+  max-article-bytes: ${CRAWLER_MAX_ARTICLE_BYTES:52428800}
   max-links-backfill: 500
   max-links-incremental: 50
   retry-backoff-seconds: 30,120,600,3600,21600
-  robots-ttl-seconds: 3600
   job-lease-seconds: 300
   min-free-bytes: 5368709120

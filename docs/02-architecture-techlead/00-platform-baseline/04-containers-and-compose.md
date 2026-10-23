@@ -6,7 +6,7 @@
 |---|---|---|---|
 | crawler-service | gradle:9.8.1-jdk21 -> bootJar (module build) | eclipse-temurin:21-jre | non-root `app` (uid 10001) |
 | api-service | gradle:9.8.1-jdk21 -> bootJar (module build) | eclipse-temurin:21-jre | non-root `app` (uid 10001) |
-| web | node:24 (npm ci + vite build) | nginx:1.29 pinned | nginx default, read-only static |
+| web | node:24 (npm ci + vite build) | nginx:1.29 pinned | non-root `nginx`; compose lowers `net.ipv4.ip_unprivileged_port_start` for port 80 |
 | (infra) | — | postgres:18.6, redis:7.4, nginx:1.29 | upstream defaults + data volume ownership note |
 
 Rules: no secrets baked (env only); `HEALTHCHECK` per Spring image hits `/health/readiness`;
@@ -26,7 +26,7 @@ tags `:<semver>-<gitsha>`; promotion by digest; `Containerfile.crawler`, `Contai
 | nginx-archive (profile `serving`) | nginx:1.29 | 127.0.0.1:8091:80 | ../data/uploads:/srv/archive:ro | — |
 
 Healthchecks: `pg_isready -U $$POSTGRES_USER`, `redis-cli ping`, Spring `/health/readiness`,
-`wget -q -O- localhost/` for nginx. `restart: unless-stopped` everywhere.
+`curl -fsS localhost/` for nginx (the pinned nginx image ships curl, not wget). `restart: unless-stopped` everywhere.
 
 ## 3. Environment variables (names only; values in .env, never committed)
 

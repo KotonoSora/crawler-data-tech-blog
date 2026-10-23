@@ -30,7 +30,7 @@ Closed set: no dynamic versions anywhere (no `+`, no `latest`, no ranges). Statu
 | jsoup | 1.21.2 | VERIFIED 2026-10-19 | crawler-service |
 | readability4j | 1.0.7 | VERIFIED 2026-10-19 | crawler-service |
 | copy-down | `io.github.furstenheim:copy_down` 1.1 | VERIFIED 2026-10-19 (correct coordinates) | crawler-service |
-| springdoc-openapi (Boot 4 line) | 3.x line pinned | CANDIDATE (V-1) | both services |
+| springdoc-openapi (Boot 4 line) | `springdoc-openapi-starter-webmvc-api` 3.1.1 | PINNED 2026-10-22 (Maven Central; build verification pending) | both services |
 | logstash-logback-encoder | 8.0 | VERIFIED 2026-10-19 | both services |
 | Flyway (Boot-managed) | Boot BOM value | PINNED (BOM) | both services |
 | Jackson Kotlin module | Boot BOM (`tools.jackson.module:jackson-module-kotlin`) | PINNED (BOM) | both services |
@@ -89,3 +89,4 @@ Closed set: no dynamic versions anywhere (no `+`, no `latest`, no ranges). Statu
 | compose.yaml syntax | 2026-10-19 | `docker compose config --quiet` green |
 | Container runtimes | 2026-10-19 | docker present; podman missing — gate G-G blocked until installed |
 | Testcontainers test run | 2026-10-19 | BUILD SUCCESSFUL: both smoke tests green on PG 18.6 + Redis 7.4 (Flyway V001-V005 / V001 applied) |
+| springdoc-openapi 3.1.1 | 2026-10-22 | Maven Central POM verified (parent Spring Boot 4.1.0); build verification pending |

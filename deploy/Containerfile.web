@@ -15,12 +15,17 @@ COPY web/apps/admin/package.json apps/admin/
 RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
 COPY web/apps apps
 COPY web/packages packages
+COPY web/scripts scripts
 RUN npm run build
 
 FROM nginx:1.29 AS runtime
+# NFR-20: serve the SPA as the unprivileged image user. compose lowers the
+# unprivileged-port floor so the edge contract can still listen on port 80.
+RUN sed -i 's|pid /var/run/nginx.pid;|pid /tmp/nginx.pid;|' /etc/nginx/nginx.conf
 COPY deploy/nginx/web.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /src/apps/shell/dist /usr/share/nginx/html
-COPY --from=build /src/apps/catalog/dist /usr/share/nginx/html/mfe/catalog
-COPY --from=build /src/apps/reader/dist /usr/share/nginx/html/mfe/reader
-COPY --from=build /src/apps/admin/dist /usr/share/nginx/html/mfe/admin
+COPY --from=build /src/dist /usr/share/nginx/html
+RUN chown -R nginx:nginx /var/cache/nginx /usr/share/nginx/html \
+    && chown nginx:nginx /var/log/nginx
+USER nginx
 EXPOSE 80
+ENTRYPOINT ["nginx", "-g", "daemon off;"]

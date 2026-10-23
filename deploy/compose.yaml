@@ -51,6 +51,11 @@ services:
       CRAWLER_GLOBAL_HOSTS: ${CRAWLER_GLOBAL_HOSTS:-4}
       CRAWLER_DEFAULT_DELAY_MS: ${CRAWLER_DEFAULT_DELAY_MS:-2000}
       CRAWLER_MEDIUM_DELAY_MS: ${CRAWLER_MEDIUM_DELAY_MS:-3000}
+      CRAWLER_CONNECT_TIMEOUT_MS: ${CRAWLER_CONNECT_TIMEOUT_MS:-10000}
+      CRAWLER_READ_TIMEOUT_MS: ${CRAWLER_READ_TIMEOUT_MS:-30000}
+      CRAWLER_FETCH_TOTAL_TIMEOUT_MS: ${CRAWLER_FETCH_TOTAL_TIMEOUT_MS:-60000}
+      CRAWLER_MAX_ASSET_BYTES: ${CRAWLER_MAX_ASSET_BYTES:-52428800}
+      CRAWLER_MAX_ARTICLE_BYTES: ${CRAWLER_MAX_ARTICLE_BYTES:-52428800}
       CRAWLER_ARCHIVE_ROOT: /app/data/uploads/crawl
       TZ: UTC
     volumes:
@@ -83,6 +88,7 @@ services:
       FLYWAY_PASSWORD: ${POSTGRES_PASSWORD}
       REDIS_URL: redis://redis:6379
       CRAWLER_INTERNAL_URL: http://crawler-service:8080
+      API_PROJECTION_LAG_CHECK_MS: ${API_PROJECTION_LAG_CHECK_MS:-30000}
       TZ: UTC
     volumes:
       - ../data/logs:/app/data/logs
@@ -109,9 +115,17 @@ services:
       dockerfile: deploy/Containerfile.web
     ports:
       - "127.0.0.1:8090:80"
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
     depends_on:
       api-service:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/ > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     restart: unless-stopped
 
   nginx-archive:

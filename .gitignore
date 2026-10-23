@@ -18,6 +18,7 @@ build/
 # Node / web
 web/node_modules/
 web/dist/
+web/apps/*/dist/
 web/coverage/
 
 # IDE / OS
@@ -27,3 +28,5 @@ web/coverage/
 
 # Logs
 *.log
+bin/
+.vscode/

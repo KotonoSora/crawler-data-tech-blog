@@ -4,6 +4,7 @@ import { ArrowLeft, Ban, Play, RotateCw, TriangleAlert } from 'lucide-react'
 
 import {
   api,
+  describe,
   durationSeconds,
   formatDateTime,
   isActiveJob,
@@ -74,11 +75,23 @@ function JobsView({ navigate }: { navigate: Navigate }) {
     setStarting(true)
     setNotice(null)
     try {
-      const created = await api.createCrawlJob({ all: true, jobType: 'incremental' })
-      setNotice(`Requested ${created.items.length} incremental job(s) for enabled sources.`)
+      // "All enabled" must not fail because one source is already running. The contract lets
+      // the UI resolve keys itself (spec 06 file 03 §2), so skip active sources and post the
+      // idle ones explicitly instead of letting the server reject the whole batch.
+      const [sources, active] = await Promise.all([api.sources(), activeSourceKeys()])
+      const keys = sources.items
+        .filter((source) => source.enabled && !active.has(source.key))
+        .map((source) => source.key)
+      if (keys.length === 0) {
+        setNotice('Every enabled source already has an active job; no incremental job was requested.')
+        jobs.reload()
+        return
+      }
+      const created = await api.createCrawlJob({ sourceKeys: keys, jobType: 'incremental' })
+      setNotice(`Requested ${created.items.length} incremental job(s) for idle enabled sources.`)
       jobs.reload()
     } catch (error) {
-      setNotice(error instanceof UiError ? `${error.message} ${error.action}` : 'Request failed.')
+      setNotice(error instanceof UiError ? `${error.code}: ${error.message} ${error.action}` : 'Request failed.')
     } finally {
       setStarting(false)
     }
@@ -94,7 +107,7 @@ function JobsView({ navigate }: { navigate: Navigate }) {
       setCancelTarget(null)
       jobs.reload()
     } catch (error) {
-      setNotice(error instanceof UiError ? `${error.message} ${error.action}` : 'Request failed.')
+      setNotice(error instanceof UiError ? `${error.code}: ${error.message} ${error.action}` : 'Request failed.')
     } finally {
       setBusyId(null)
     }
@@ -225,7 +238,7 @@ function JobView({ jobId, navigate }: { jobId: string; navigate: Navigate }) {
       setDialogOpen(false)
       job.reload()
     } catch (error) {
-      setNotice(error instanceof UiError ? `${error.message} ${error.action}` : 'Request failed.')
+      setNotice(error instanceof UiError ? `${error.code}: ${error.message} ${error.action}` : 'Request failed.')
     } finally {
       setBusy(false)
     }
@@ -237,7 +250,7 @@ function JobView({ jobId, navigate }: { jobId: string; navigate: Navigate }) {
       await api.retryArticle(failure.articleId)
       setNotice(`Retry queued for ${failure.title}.`)
     } catch (error) {
-      setNotice(error instanceof UiError ? `${error.message} ${error.action}` : 'Request failed.')
+      setNotice(error instanceof UiError ? `${error.code}: ${error.message} ${error.action}` : 'Request failed.')
     }
   }
 
@@ -306,9 +319,7 @@ function JobView({ jobId, navigate }: { jobId: string; navigate: Navigate }) {
             </CardHeader>
             <CardContent className="space-y-2">
               {failures.error ? (
-                <p className="text-muted-foreground text-sm">
-                  Failure list unavailable: {failures.error.message}
-                </p>
+                <AdminError error={failures.error} />
               ) : null}
               {failures.data && failures.data.items.length === 0 ? (
                 <p className="text-muted-foreground text-sm">No failures recorded for this job.</p>
@@ -454,6 +465,11 @@ function JobsTable({
 }
 
 function OpsCard({ ops, error }: { ops: OpsSummary | null; error: Error | null }) {
+  const ui = error instanceof UiError ? error : null
+  const lagging = (ops?.projectionLagSeconds ?? 0) > 30
+  const down = ops?.services.filter((service) => service.status !== 'UP') ?? []
+  const lagMessage = describe('OPS-PROJECTION-LAG')
+  const dependencyMessage = describe('OPS-DEPENDENCY-DOWN')
   return (
     <Card data-testid="ops-card">
       <CardHeader>
@@ -466,9 +482,34 @@ function OpsCard({ ops, error }: { ops: OpsSummary | null; error: Error | null }
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
         {error ? (
-          <p className="text-muted-foreground">
-            Health probe failed: {error instanceof UiError ? error.message : error.message}
-          </p>
+          <Alert variant="destructive" data-testid="ops-error">
+            <TriangleAlert />
+            <AlertTitle>{ui?.message ?? 'Health probe failed.'}</AlertTitle>
+            <AlertDescription className="space-y-1">
+              <p>{ui?.action ?? 'Check that the stack is running, then retry.'}</p>
+              <code className="text-xs">{ui?.code ?? 'UI-UNKNOWN'}</code>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {lagging ? (
+          <Alert variant="destructive" data-testid="ops-projection-lag">
+            <TriangleAlert />
+            <AlertTitle>{lagMessage.summary} {ops?.projectionLagSeconds}s behind.</AlertTitle>
+            <AlertDescription className="space-y-1">
+              <p>{lagMessage.action}</p>
+              <code className="text-xs">OPS-PROJECTION-LAG</code>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {down.length > 0 ? (
+          <Alert variant="destructive" data-testid="ops-dependency-down">
+            <TriangleAlert />
+            <AlertTitle>{dependencyMessage.summary}</AlertTitle>
+            <AlertDescription className="space-y-1">
+              <p>{dependencyMessage.action}</p>
+              <code className="text-xs">OPS-DEPENDENCY-DOWN</code>
+            </AlertDescription>
+          </Alert>
         ) : null}
         {ops?.services.map((service) => (
           <div key={service.service} className="flex items-start justify-between gap-3">
@@ -554,6 +595,23 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
   if (status === 'failed') return 'destructive'
   if (status === 'cancelled') return 'outline'
   return 'secondary'
+}
+
+/**
+ * Collect sources with a pending/running job. The public jobs endpoint has no status
+ * filter, so page through the newest-first list until every job has been seen.
+ */
+async function activeSourceKeys(): Promise<Set<string>> {
+  const active = new Set<string>()
+  for (let page = 0; ; page += 1) {
+    const response = await api.jobs({ page, size: 200 })
+    for (const job of response.items) {
+      if (isActiveJob(job)) active.add(job.sourceKey)
+    }
+    if (response.items.length === 0 || (page + 1) * response.size >= response.total) {
+      return active
+    }
+  }
 }
 
 /** 30 s cadence only while a job is pending/running; 0 otherwise (spec 07 file 05 §5). */

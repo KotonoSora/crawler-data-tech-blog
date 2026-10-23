@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
 import {
+  BrowserRouter,
   Link,
   NavLink,
   Outlet,
-  RouterProvider,
-  createBrowserRouter,
+  Route,
+  Routes,
   useNavigate,
   useParams,
   useSearchParams,
 } from 'react-router'
 
-import { api, UiError } from '@techblog/shared'
+import { api, describe, UiError } from '@techblog/shared'
 import { MF_NAVIGATE } from '@techblog/shared/mfe'
 import type { NavigateDetail } from '@techblog/shared/mfe'
 import { Button } from '@techblog/ui/components/button'
@@ -22,24 +23,22 @@ import { RemoteHost } from './remote-host'
 // reader -> /articles/:id; admin -> /jobs, /jobs/:id; the shell owns the frame and the 404.
 // The shell is the only place that reads the router: remotes receive plain attributes and
 // ask for navigation with the `tb:navigate` event.
-export const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <ShellLayout />,
-    children: [
-      { index: true, element: <RemoteHost name="catalog" attrs={{ view: 'dashboard' }} /> },
-      { path: 'sources/:key', element: <SourceRoute /> },
-      { path: 'articles', element: <ArticlesRoute /> },
-      { path: 'articles/:id', element: <ArticleRoute /> },
-      { path: 'jobs', element: <RemoteHost name="admin" attrs={{}} /> },
-      { path: 'jobs/:id', element: <JobRoute /> },
-      { path: '*', element: <NotFound /> },
-    ],
-  },
-])
-
 export function App() {
-  return <RouterProvider router={router} />
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<ShellLayout />}>
+          <Route index element={<RemoteHost name="catalog" attrs={{ view: 'dashboard' }} />} />
+          <Route path="sources/:key" element={<SourceRoute />} />
+          <Route path="articles" element={<ArticlesRoute />} />
+          <Route path="articles/:id" element={<ArticleRoute />} />
+          <Route path="jobs" element={<RemoteHost name="admin" attrs={{}} />} />
+          <Route path="jobs/:id" element={<JobRoute />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  )
 }
 
 function SourceRoute() {
@@ -126,7 +125,7 @@ function ShellLayout() {
 // so every route says the same thing. Polls every 60 s; a 503 ProblemDetail is itself the
 // signal that api-service or one of its dependencies is down.
 function ServiceBanner() {
-  const [message, setMessage] = useState<string | null>(null)
+  const [alert, setAlert] = useState<{ code: string; message: string; action: string } | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -136,23 +135,31 @@ function ServiceBanner() {
         if (cancelled) return
         const down = ops.services.filter((service) => service.status !== 'UP')
         if (down.length > 0) {
-          setMessage(
-            `Service dependency degraded: ${down.map((service) => service.service).join(', ')}. Screens may show stale data.`,
-          )
+          const message = describe('OPS-DEPENDENCY-DOWN')
+          setAlert({
+            code: 'OPS-DEPENDENCY-DOWN',
+            message: `${message.summary} ${down.map((service) => service.service).join(', ')}. Screens may show stale data.`,
+            action: message.action,
+          })
         } else if (ops.projectionLagSeconds > 30) {
-          setMessage(
-            `The read model is ${ops.projectionLagSeconds}s behind the crawler. Screens may show stale data.`,
-          )
+          const message = describe('OPS-PROJECTION-LAG')
+          setAlert({
+            code: 'OPS-PROJECTION-LAG',
+            message: `${message.summary} The read model is ${ops.projectionLagSeconds}s behind the crawler.`,
+            action: message.action,
+          })
         } else {
-          setMessage(null)
+          setAlert(null)
         }
       } catch (error) {
         if (cancelled) return
-        setMessage(
-          error instanceof UiError && error.code === 'OPS-DEPENDENCY-DOWN'
-            ? 'A service dependency is unreachable. Screens may show stale data.'
-            : 'Service health could not be checked. Screens may show stale data.',
-        )
+        const code = error instanceof UiError ? error.code : 'UI-UNKNOWN'
+        const message = describe(code)
+        setAlert({
+          code,
+          message: `${message.summary} Service health could not be checked; screens may show stale data.`,
+          action: message.action,
+        })
       }
     }
     void check()
@@ -163,14 +170,17 @@ function ServiceBanner() {
     }
   }, [])
 
-  if (!message) return null
+  if (!alert) return null
   return (
     <div
       data-testid="shell-banner"
       role="status"
       className="border-destructive/40 bg-destructive/10 text-destructive border-b px-4 py-2 text-center text-sm"
     >
-      {message}
+      <code data-testid="shell-banner-code" className="mr-2 text-xs font-semibold">
+        {alert.code}
+      </code>
+      {alert.message} {alert.action}
     </div>
   )
 }

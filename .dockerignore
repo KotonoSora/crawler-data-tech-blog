@@ -4,9 +4,9 @@
 .kotlin
 .npm-cache
 .verify
-data
-docs
-web/node_modules
+/data
+/docs
+/web/node_modules
 web/dist
 web/**/dist
 **/build

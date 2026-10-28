@@ -4,6 +4,7 @@ import com.techblog.crawler.config.CrawlerProperties
 import com.techblog.crawler.config.SourceDiscoveryConfig
 import com.techblog.crawler.config.SourceRegistry
 import com.techblog.crawler.domain.CandidateNormalizer
+import com.techblog.crawler.domain.Discovery
 import com.techblog.crawler.domain.FeedDiscoverer
 import com.techblog.crawler.domain.FetchLogEntry
 import com.techblog.crawler.domain.FetchLogRepository

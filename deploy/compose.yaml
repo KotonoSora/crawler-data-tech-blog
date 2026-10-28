@@ -19,6 +19,9 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    # Allow a clean shutdown so the bind-mounted data directory never keeps a stale
+    # postmaster.pid from a SIGKILL during an e2e restart.
+    stop_grace_period: 60s
     restart: unless-stopped
 
   redis:
@@ -74,6 +77,7 @@ services:
       timeout: 5s
       retries: 20
       start_period: 60s
+    stop_grace_period: 60s
     restart: unless-stopped
 
   api-service:
@@ -107,6 +111,7 @@ services:
       timeout: 5s
       retries: 20
       start_period: 60s
+    stop_grace_period: 60s
     restart: unless-stopped
 
   web:

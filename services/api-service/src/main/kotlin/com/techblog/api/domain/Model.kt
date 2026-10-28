@@ -22,7 +22,7 @@ enum class ErrorCode(val wire: String, val status: Int, val title: String) {
 }
 
 /** Domain failure raised anywhere below the web layer; the advice turns it into ProblemDetail. */
-class DomainException(
+open class DomainException(
     val code: ErrorCode,
     override val message: String,
     val activeJobId: String? = null,

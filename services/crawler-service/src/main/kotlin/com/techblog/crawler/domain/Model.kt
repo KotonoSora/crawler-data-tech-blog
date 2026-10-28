@@ -26,7 +26,7 @@ enum class CrawlerErrorCode(val wire: String, val status: Int, val title: String
     }
 }
 
-class CrawlerException(
+open class CrawlerException(
     val code: CrawlerErrorCode,
     override val message: String,
     val activeJobId: String? = null,

@@ -28,6 +28,15 @@ deployed.
 ## 2. Red → green runbook
 
 ```bash
+# One command: build/start compose, wait for nginx, install Chromium, run the stack project.
+# Requires deploy/.env (cp deploy/.env.example deploy/.env) and Docker + Node 24.
+sh run-stack.sh
+KEEP_STACK=1 sh run-stack.sh   # leave containers running for debugging
+```
+
+Manual sequence:
+
+```bash
 # 0. one-time install (Node 24)
 cd e2e
 npm install

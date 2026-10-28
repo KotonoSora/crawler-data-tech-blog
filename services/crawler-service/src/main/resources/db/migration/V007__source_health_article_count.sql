@@ -1,8 +1,14 @@
 -- V007__source_health_article_count.sql
 -- UI SourceSummary.articleCount is the number of articles the source has discovered,
 -- not only the terminal archived+failed subset. The view stays the single aggregate read.
+--
+-- PostgreSQL cannot rename a view column through CREATE OR REPLACE VIEW, and the new
+-- article_count column sits in the middle of the result. Recreate the view in place;
+-- no other database object depends on it.
 
-CREATE OR REPLACE VIEW source_health AS
+DROP VIEW IF EXISTS source_health;
+
+CREATE VIEW source_health AS
 SELECT
     s.id                              AS source_id,
     s.source_key                      AS source_key,

@@ -5,5 +5,10 @@
 set -eu
 cd "$(dirname "$0")/.."
 mkdir -p data/postgres data/redis data/logs data/logs/nginx data/tmp data/uploads/crawl
-chmod -R u+rwX,g+rwX data
+
+# The Java images run as uid 10001 (`app`) and write logs/archive/tmp through these host
+# bind mounts. This is a single-operator local stack, so grant every local user write access;
+# Spring Boot aborts startup when the Logback file appender cannot open its log file.
+chmod -R a+rwX data/logs data/tmp data/uploads
+
 echo "data/ directories ready: postgres, redis, logs, tmp, uploads/crawl"
